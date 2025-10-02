@@ -4,14 +4,14 @@ import { useWallet } from "./useWallet";
 export interface RewardInfo {
   poolId: number;
   token: string;
-  nextEpoch: number;
-  feesNextEpoch: number;
+  nextEpoch: number;      // reward for next epoch
+  feesNextEpoch: number;  // swap fees for next epoch
   apr: number;
 }
 
 export interface MultiRewardInfo {
   poolId: number;
-  rewards: RewardInfo[]; // multiple tokens per pool
+  rewards: RewardInfo[];
 }
 
 export const useRewards = () => {
