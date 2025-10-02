@@ -17,12 +17,25 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
   const [amountB, setAmountB] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  // Projected APR after adding liquidity
   const projectedAPR = useMemo(() => {
     if (!pool) return 0;
     const newLiquidityA = pool.liquidityA + amountA;
     const newLiquidityB = pool.liquidityB + amountB;
     const totalLiquidity = newLiquidityA + newLiquidityB;
-    return pool.swapFeesNextEpoch / totalLiquidity * 365 * 100; // simple APR estimate
+    return pool.swapFeesNextEpoch / totalLiquidity * 365 * 100;
+  }, [amountA, amountB, pool]);
+
+  // Projected rewards per token
+  const projectedRewards = useMemo(() => {
+    if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
+    const totalShares = pool.totalShares + amountA + amountB;
+    const shareFraction = (amountA + amountB) / totalShares;
+
+    return {
+      [pool.tokenA]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+      [pool.tokenB]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+    };
   }, [amountA, amountB, pool]);
 
   const handleAdd = async () => {
@@ -65,7 +78,12 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
 
         <div className="mb-4">
           <p>Current APR: {pool.apr.toFixed(2)}%</p>
-          <p>Projected APR after adding: {projectedAPR.toFixed(2)}%</p>
+          <p>Projected APR: {projectedAPR.toFixed(2)}%</p>
+          <p>Projected Rewards:</p>
+          <ul className="ml-4">
+            <li>{pool.tokenA}: {projectedRewards[pool.tokenA]?.toFixed(4)}</li>
+            <li>{pool.tokenB}: {projectedRewards[pool.tokenB]?.toFixed(4)}</li>
+          </ul>
         </div>
 
         <div className="flex justify-between">
