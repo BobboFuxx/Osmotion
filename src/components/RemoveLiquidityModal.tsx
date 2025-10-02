@@ -22,7 +22,16 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
     const newLiquidityA = pool.liquidityA - pool.liquidityA * shareFraction;
     const newLiquidityB = pool.liquidityB - pool.liquidityB * shareFraction;
     const totalLiquidity = newLiquidityA + newLiquidityB;
-    return pool.swapFeesNextEpoch / totalLiquidity * 365 * 100; // simple APR estimate
+    return pool.swapFeesNextEpoch / totalLiquidity * 365 * 100;
+  }, [lpAmount, pool]);
+
+  const projectedRewards = useMemo(() => {
+    if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
+    const shareFraction = lpAmount / pool.totalShares;
+    return {
+      [pool.tokenA]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+      [pool.tokenB]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+    };
   }, [lpAmount, pool]);
 
   const handleRemove = async () => {
@@ -58,7 +67,12 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
 
         <div className="mb-4">
           <p>Current APR: {pool.apr.toFixed(2)}%</p>
-          <p>Projected APR after removing: {projectedAPR.toFixed(2)}%</p>
+          <p>Projected APR: {projectedAPR.toFixed(2)}%</p>
+          <p>Projected Rewards:</p>
+          <ul className="ml-4">
+            <li>{pool.tokenA}: {projectedRewards[pool.tokenA]?.toFixed(4)}</li>
+            <li>{pool.tokenB}: {projectedRewards[pool.tokenB]?.toFixed(4)}</li>
+          </ul>
         </div>
 
         <div className="flex justify-between">
