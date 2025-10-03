@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export interface PoolInfo {
   id: number;
@@ -15,7 +15,7 @@ export const usePools = (refreshIntervalMs?: number) => {
   const [pools, setPools] = useState<PoolInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPools = async () => {
+  const fetchPools = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("https://api-osmosis.imperator.co/pools/v2");
@@ -41,15 +41,16 @@ export const usePools = (refreshIntervalMs?: number) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial fetch and optional refresh interval
   useEffect(() => {
     fetchPools();
     if (refreshIntervalMs) {
       const interval = setInterval(fetchPools, refreshIntervalMs);
       return () => clearInterval(interval);
     }
-  }, [refreshIntervalMs]);
+  }, [fetchPools, refreshIntervalMs]);
 
   return { pools, loading, refreshPools: fetchPools };
 };
