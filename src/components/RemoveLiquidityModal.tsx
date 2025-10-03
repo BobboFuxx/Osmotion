@@ -1,3 +1,5 @@
+// src/components/RemoveLiquidityModal.tsx
+
 import { useState, useMemo, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { removeLiquidity } from "../utils/blockchain";
@@ -109,21 +111,21 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
     },
   };
 
-  // Execute on-chain remove liquidity tx
+  // Execute on-chain remove liquidity using real Osmosis logic
   const handleRemove = async () => {
     if (!client || !account || !pool)
       return alert("⚠️ Wallet not connected or pool not found");
 
     setLoading(true);
     try {
-      const res = await removeLiquidity(client, account, poolId, lpAmount);
-      if (res.success) {
-        alert(`✅ Liquidity removed! Tx Hash: ${res.txHash}`);
-        clearProjections(); // reset after success
-        onClose();
-      } else {
-        alert("⚠️ Remove liquidity failed");
-      }
+      // Minimum LP tokens to burn (optional: add slippage calculation)
+      const minShareOut = "0";
+
+      const txHash = await removeLiquidity(client.client, account, pool.id, lpAmount, minShareOut);
+
+      alert(`✅ Liquidity removed! Tx Hash: ${txHash}`);
+      clearProjections(); // reset after success
+      onClose();
     } catch (err) {
       console.error(err);
       alert("❌ Transaction failed - check console for details.");
