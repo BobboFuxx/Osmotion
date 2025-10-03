@@ -49,7 +49,7 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
       deltaLiquidity: -fraction * pool.liquidityB,
     });
 
-    // Clear projections when modal closes
+    // Clear projections when modal unmounts
     return () => clearProjections();
   }, [lpAmount, pool, setProjection, clearProjections]);
 
@@ -59,8 +59,10 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
     const remainingShares = pool.totalShares - lpAmount;
     const shareFraction = remainingShares / pool.totalShares;
     return {
-      [pool.tokenA]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-      [pool.tokenB]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+      [pool.tokenA]:
+        pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+      [pool.tokenB]:
+        pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
     };
   }, [lpAmount, pool]);
 
@@ -73,8 +75,16 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
     return {
       labels: ["Next Epoch", "15d", "180d", "1yr"],
       datasets: [
-        { label: `${pool.tokenA} Rewards`, data: [projectedRewards[pool.tokenA], ...projectedA], backgroundColor: "rgba(155,89,182,0.7)" },
-        { label: `${pool.tokenB} Rewards`, data: [projectedRewards[pool.tokenB], ...projectedB], backgroundColor: "rgba(255,111,60,0.7)" },
+        {
+          label: `${pool.tokenA} Rewards`,
+          data: [projectedRewards[pool.tokenA], ...projectedA],
+          backgroundColor: "rgba(155,89,182,0.7)",
+        },
+        {
+          label: `${pool.tokenB} Rewards`,
+          data: [projectedRewards[pool.tokenB], ...projectedB],
+          backgroundColor: "rgba(255,111,60,0.7)",
+        },
       ],
     };
   }, [projectedRewards, pool]);
@@ -95,7 +105,7 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
       await removeLiquidity(client, account, poolId, lpAmount);
       alert("Liquidity removed successfully!");
       onClose();
-      clearProjections(); // Reset projections after successful remove
+      clearProjections(); // Reset projections after remove
     } catch (err) {
       console.error(err);
       alert("Transaction failed!");
@@ -122,7 +132,9 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
         {chartData && <Bar data={chartData} options={options} className="mb-4" />}
 
         <div className="flex justify-between">
-          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
+          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>
+            Cancel
+          </button>
           <button className="bg-white text-orange-600 px-4 py-2 rounded" onClick={handleRemove} disabled={loading}>
             {loading ? "Processing..." : "Remove Liquidity"}
           </button>
