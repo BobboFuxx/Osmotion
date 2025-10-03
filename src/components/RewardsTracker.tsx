@@ -1,4 +1,5 @@
 import { useRewards } from "../hooks/useRewards";
+import { useWallet } from "../hooks/useWallet";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -13,10 +14,12 @@ import {
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 export default function RewardsTracker() {
-  const { rewards, loading } = useRewards();
+  const { account } = useWallet();
+  const { rewards, loading } = useRewards(account);
 
-  if (loading) return <div>Loading rewards...</div>;
-  if (!rewards.length) return <div>No rewards found for your account.</div>;
+  if (!account) return <div className="text-white">Connect wallet to view rewards</div>;
+  if (loading) return <div className="text-white">Loading rewards...</div>;
+  if (!rewards.length) return <div className="text-white">No rewards found for your account.</div>;
 
   const projectionDays = [15, 180, 365]; // days for projection
 
@@ -27,9 +30,9 @@ export default function RewardsTracker() {
       {rewards.map((pool) => (
         <div key={pool.poolId} className="mb-6">
           {pool.rewards.map((r) => {
-            const projectedRewards = projectionDays.map((days) =>
-              r.nextEpoch * days
-            );
+            // Projected rewards
+            const projectedRewards = projectionDays.map((days) => r.nextEpoch * days);
+            const projectedFees = projectionDays.map((days) => r.feesNextEpoch * days);
 
             const chartData = {
               labels: ["Next Epoch", "15d", "180d", "1yr"],
@@ -37,12 +40,12 @@ export default function RewardsTracker() {
                 {
                   label: `${r.token} Rewards`,
                   data: [r.nextEpoch, ...projectedRewards],
-                  backgroundColor: "rgba(155, 89, 182, 0.7)",
+                  backgroundColor: "rgba(155, 89, 182, 0.7)", // Purple
                 },
                 {
                   label: `${r.token} Swap Fees`,
-                  data: [r.feesNextEpoch, ...projectedRewards],
-                  backgroundColor: "rgba(255, 111, 60, 0.7)",
+                  data: [r.feesNextEpoch, ...projectedFees],
+                  backgroundColor: "rgba(255, 111, 60, 0.7)", // Orange
                 },
               ],
             };
@@ -53,7 +56,7 @@ export default function RewardsTracker() {
                 legend: { position: "top" },
                 title: {
                   display: true,
-                  text: `Pool ${r.poolId} - ${r.token} Rewards Projection`,
+                  text: `Pool ${pool.poolId} - ${r.token} Rewards Projection`,
                 },
                 tooltip: {
                   callbacks: {
