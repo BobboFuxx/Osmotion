@@ -32,37 +32,43 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
 
   const { setProjection, clearProjections } = useRewardsProjection();
 
-  // Update projected rewards whenever amounts change
+  // Update projections when amounts change
   useEffect(() => {
     if (!pool) return;
 
-    // Update projections for both tokens
+    // Apply projections for token A and token B
     setProjection({
       poolId: pool.id,
       token: pool.tokenA,
-      deltaLiquidity: amountA,
+      deltaLiquidity: Math.max(amountA, 0),
     });
     setProjection({
       poolId: pool.id,
       token: pool.tokenB,
-      deltaLiquidity: amountB,
+      deltaLiquidity: Math.max(amountB, 0),
     });
 
-    // Only clear projections when modal unmounts
+    // Clear projections only when modal unmounts
     return () => clearProjections();
   }, [amountA, amountB, pool, setProjection, clearProjections]);
 
-  // Calculate projected rewards for the chart
+  // Calculate projected rewards for preview chart
   const projectionDays = [15, 180, 365];
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
+
     const totalShares = pool.totalShares + amountA + amountB;
-    const shareFraction = (amountA + amountB) / totalShares;
+    const shareFraction = totalShares > 0 ? (amountA + amountB) / totalShares : 0;
+
     return {
       [pool.tokenA]:
-        pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        pool.swapFeesNextEpoch *
+        shareFraction *
+        (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
       [pool.tokenB]:
-        pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        pool.swapFeesNextEpoch *
+        shareFraction *
+        (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
     };
   }, [amountA, amountB, pool]);
 
@@ -93,18 +99,32 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
     plugins: {
       legend: { position: "top" },
       title: { display: true, text: `Projected Rewards for Pool ${pool?.id}` },
-      tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}` } },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}`,
+        },
+      },
     },
   };
 
   const handleAdd = async () => {
-    if (!client || !account || !pool) return alert("Wallet not connected or pool not found");
+    if (!client || !account || !pool)
+      return alert("Wallet not connected or pool not found");
+
     setLoading(true);
     try {
-      await addLiquidity(client, account, poolId, amountA, pool.tokenA, amountB, pool.tokenB);
+      await addLiquidity(
+        client,
+        account,
+        poolId,
+        amountA,
+        pool.tokenA,
+        amountB,
+        pool.tokenB
+      );
       alert("Liquidity added successfully!");
       onClose();
-      clearProjections(); // Reset projections after add
+      clearProjections(); // Reset projections after confirmed add
     } catch (err) {
       console.error(err);
       alert("Transaction failed!");
@@ -118,7 +138,9 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center">
       <div className="bg-purple-700 p-6 rounded w-96 text-white overflow-auto max-h-[90vh]">
-        <h2 className="text-xl font-bold mb-4">Add Liquidity - Pool {pool.id}</h2>
+        <h2 className="text-xl font-bold mb-4">
+          Add Liquidity - Pool {pool.id}
+        </h2>
 
         <input
           type="number"
@@ -135,13 +157,24 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
           onChange={(e) => setAmountB(Number(e.target.value))}
         />
 
-        {chartData && <Bar data={chartData} options={options} className="mb-4" />}
+        {chartData && (
+          <div className="mb-4">
+            <Bar data={chartData} options={options} />
+            <p className="text-xs text-gray-300 mt-2 italic">
+              *Rewards shown include projected changes from this action
+            </p>
+          </div>
+        )}
 
         <div className="flex justify-between">
           <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>
             Cancel
           </button>
-          <button className="bg-white text-purple-700 px-4 py-2 rounded" onClick={handleAdd} disabled={loading}>
+          <button
+            className="bg-white text-purple-700 px-4 py-2 rounded"
+            onClick={handleAdd}
+            disabled={loading}
+          >
             {loading ? "Processing..." : "Add Liquidity"}
           </button>
         </div>
