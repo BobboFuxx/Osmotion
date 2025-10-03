@@ -1,72 +1,89 @@
 // src/contexts/LimitOrdersContext.tsx
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { BlockchainClient, placeLimitOrder } from "../utils/blockchain";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { BlockchainClient, orderbookPlaceOrder, orderbookCancelOrder, orderbookQueryOrders } from "../utils/blockchain";
 
 export interface LimitOrder {
   id: string;
-  sender: string;
-  poolId: number;
-  tokenIn: { denom: string; amount: string };
-  tokenOutDenom: string;
-  targetPrice: number;
   side: "buy" | "sell";
+  price: string;
+  quantity: string;
+  baseDenom: string;
+  quoteDenom: string;
+  status: "open" | "filled" | "cancelled";
 }
 
 interface LimitOrdersContextType {
   orders: LimitOrder[];
-  addOrder: (order: Omit<LimitOrder, "id">) => void;
-  removeOrder: (id: string) => void;
-  processOrders: () => Promise<void>;
+  loading: boolean;
+  placeOrder: (order: Omit<LimitOrder, "id" | "status">) => Promise<void>;
+  cancelOrder: (orderId: string) => Promise<void>;
+  refreshOrders: () => Promise<void>;
 }
 
 const LimitOrdersContext = createContext<LimitOrdersContextType | undefined>(undefined);
 
-export const LimitOrdersProvider: React.FC<{ client: BlockchainClient }> = ({ client, children }) => {
+export const LimitOrdersProvider: React.FC<{
+  client: BlockchainClient | null;
+  orderbookAddress: string;
+  children: React.ReactNode;
+}> = ({ client, orderbookAddress, children }) => {
   const [orders, setOrders] = useState<LimitOrder[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const addOrder = (order: Omit<LimitOrder, "id">) => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setOrders(prev => [...prev, { ...order, id }]);
-  };
-
-  const removeOrder = (id: string) => {
-    setOrders(prev => prev.filter(o => o.id !== id));
-  };
-
-  const processOrders = async () => {
-    for (const order of orders) {
-      const txHash = await placeLimitOrder(
-        client.client,
-        order.sender,
-        order.poolId,
-        order.tokenIn,
-        order.tokenOutDenom,
-        order.targetPrice,
-        order.side
-      );
-
-      if (txHash) {
-        console.log(`Limit order executed! TxHash: ${txHash}`);
-        removeOrder(order.id);
-      }
+  const refreshOrders = useCallback(async () => {
+    if (!client) return;
+    try {
+      setLoading(true);
+      const result = await orderbookQueryOrders(client.client, orderbookAddress, client.signerAddress);
+      setOrders(result.orders || []);
+    } catch (err) {
+      console.error("Failed to fetch orders:", err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [client, orderbookAddress]);
 
-  // Optional: auto-process every N seconds
+  const placeOrder = useCallback(
+    async (order: Omit<LimitOrder, "id" | "status">) => {
+      if (!client) return;
+      await orderbookPlaceOrder(client.client, client.signerAddress, orderbookAddress, order);
+      await refreshOrders();
+    },
+    [client, orderbookAddress, refreshOrders]
+  );
+
+  const cancelOrder = useCallback(
+    async (orderId: string) => {
+      if (!client) return;
+      await orderbookCancelOrder(client.client, client.signerAddress, orderbookAddress, orderId);
+      await refreshOrders();
+    },
+    [client, orderbookAddress, refreshOrders]
+  );
+
   useEffect(() => {
-    const interval = setInterval(processOrders, 10_000); // every 10 seconds
-    return () => clearInterval(interval);
-  }, [orders]);
+    if (client) {
+      refreshOrders();
+    }
+  }, [client, refreshOrders]);
 
   return (
-    <LimitOrdersContext.Provider value={{ orders, addOrder, removeOrder, processOrders }}>
+    <LimitOrdersContext.Provider
+      value={{
+        orders,
+        loading,
+        placeOrder,
+        cancelOrder,
+        refreshOrders,
+      }}
+    >
       {children}
     </LimitOrdersContext.Provider>
   );
 };
 
-export const useLimitOrders = () => {
+export const useLimitOrdersContext = () => {
   const context = useContext(LimitOrdersContext);
-  if (!context) throw new Error("useLimitOrders must be used within a LimitOrdersProvider");
+  if (!context) throw new Error("useLimitOrdersContext must be used within a LimitOrdersProvider");
   return context;
 };
