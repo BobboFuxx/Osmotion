@@ -1,5 +1,3 @@
-// src/components/AddLiquidityModal.tsx
-
 import { useState, useMemo, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { addLiquidity } from "../utils/blockchain";
@@ -15,6 +13,7 @@ import {
   Legend,
 } from "chart.js";
 import { useRewardsProjection } from "../hooks/useRewardsProjection";
+import { calcAmountWithSlippage } from "@osmonauts/math";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -31,13 +30,13 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
   const [amountA, setAmountA] = useState(0);
   const [amountB, setAmountB] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [slippage, setSlippage] = useState(0.5); // default 0.5%
 
   const { setProjection, clearProjections } = useRewardsProjection();
 
   // Update reward projections when inputs change
   useEffect(() => {
     if (!pool) return;
-
     setProjection({
       poolId: pool.id,
       token: pool.tokenA,
@@ -52,7 +51,6 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
     return () => clearProjections();
   }, [amountA, amountB, pool, setProjection, clearProjections]);
 
-  // Calculate projected rewards for preview chart
   const projectionDays = [15, 180, 365];
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
@@ -99,26 +97,25 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
     plugins: {
       legend: { position: "top" as const },
       title: { display: true, text: `Projected Rewards for Pool ${pool?.id}` },
-      tooltip: {
-        callbacks: {
-          label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}`,
-        },
-      },
+      tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}` } },
     },
   };
 
-  // Execute on-chain add liquidity tx using real Osmosis logic
+  // Execute on-chain add liquidity tx with slippage protection
   const handleAdd = async () => {
     if (!client || !account || !pool) return alert("⚠️ Wallet not connected or pool not found");
+    if (amountA <= 0 || amountB <= 0) return alert("⚠️ Enter valid amounts");
 
     setLoading(true);
     try {
-      // Format token amounts for blockchain call
       const tokenA = { denom: pool.tokenA, amount: amountA.toString() };
       const tokenB = { denom: pool.tokenB, amount: amountB.toString() };
 
-      // Minimum LP tokens to receive (optional: implement slippage calculation)
-      const shareOutMin = "0";
+      // Calculate minimum LP tokens with slippage tolerance
+      const totalShares = pool.totalShares + amountA + amountB;
+      const shareFraction = (amountA + amountB) / totalShares;
+      const estimatedLP = shareFraction * totalShares;
+      const shareOutMin = Math.floor(calcAmountWithSlippage(estimatedLP, -slippage / 100)).toString();
 
       const txHash = await addLiquidity(client.client, account, pool.id, tokenA, tokenB, shareOutMin);
 
@@ -138,9 +135,7 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center">
       <div className="bg-purple-700 p-6 rounded w-96 text-white overflow-auto max-h-[90vh]">
-        <h2 className="text-xl font-bold mb-4">
-          Add Liquidity - Pool {pool.id}
-        </h2>
+        <h2 className="text-xl font-bold mb-4">Add Liquidity - Pool {pool.id}</h2>
 
         <input
           type="number"
@@ -152,9 +147,16 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
         <input
           type="number"
           placeholder={pool.tokenB}
-          className="w-full mb-4 text-black rounded px-2 py-1"
+          className="w-full mb-2 text-black rounded px-2 py-1"
           value={amountB}
           onChange={(e) => setAmountB(Number(e.target.value))}
+        />
+        <input
+          type="number"
+          placeholder="Slippage %"
+          className="w-full mb-4 text-black rounded px-2 py-1"
+          value={slippage}
+          onChange={(e) => setSlippage(Number(e.target.value))}
         />
 
         {chartData && (
@@ -167,9 +169,7 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
         )}
 
         <div className="flex justify-between">
-          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>
-            Cancel
-          </button>
+          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
           <button
             className="bg-white text-purple-700 px-4 py-2 rounded"
             onClick={handleAdd}
