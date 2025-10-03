@@ -2,7 +2,7 @@
 Liquidity management and alternative UI for Osmosis blockchain
 
 
-'''src/
+''src/
 ├── components/
 │   ├── WalletConnect.tsx
 │   ├── EndpointSelector.tsx
@@ -33,4 +33,4 @@ Liquidity management and alternative UI for Osmosis blockchain
 │   ├── endpoints.ts
 │   └── analytics.ts
 └── styles/
-    └── tailwind.config.js'''
+    └── tailwind.config.js''
