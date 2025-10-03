@@ -1,13 +1,12 @@
 import { useState } from "react";
-import AddLiquidityModal from "./AddLiquidityModal";
-import RemoveLiquidityModal from "./RemoveLiquidityModal";
+import PoolModal from "./PoolModal";
 import { usePools, PoolInfo } from "../hooks/usePools";
 
 export default function PoolList() {
   const { pools, loading } = usePools();
   const [selectedPool, setSelectedPool] = useState<PoolInfo | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [showRemove, setShowRemove] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "remove">("add");
+  const [showModal, setShowModal] = useState(false);
 
   if (loading) return <p className="text-white">Loading pools...</p>;
   if (!pools.length) return <p className="text-white">No pools found.</p>;
@@ -27,7 +26,8 @@ export default function PoolList() {
               className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-600 transition"
               onClick={() => {
                 setSelectedPool(pool);
-                setShowAdd(true);
+                setModalMode("add");
+                setShowModal(true);
               }}
             >
               Add
@@ -36,7 +36,8 @@ export default function PoolList() {
               className="bg-orange-600 px-4 py-2 rounded hover:bg-orange-500 transition"
               onClick={() => {
                 setSelectedPool(pool);
-                setShowRemove(true);
+                setModalMode("remove");
+                setShowModal(true);
               }}
             >
               Remove
@@ -45,17 +46,10 @@ export default function PoolList() {
         </div>
       ))}
 
-      {showAdd && selectedPool && (
-        <AddLiquidityModal
+      {showModal && selectedPool && (
+        <PoolModal
           poolId={selectedPool.id}
-          onClose={() => setShowAdd(false)}
-        />
-      )}
-
-      {showRemove && selectedPool && (
-        <RemoveLiquidityModal
-          poolId={selectedPool.id}
-          onClose={() => setShowRemove(false)}
+          onClose={() => setShowModal(false)}
         />
       )}
     </div>
