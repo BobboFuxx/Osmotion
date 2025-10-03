@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { removeLiquidity } from "../utils/blockchain";
 import { usePools } from "../hooks/usePools";
@@ -12,6 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { useRewardsProjection } from "../hooks/useRewardsProjection";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -27,6 +28,30 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
 
   const [lpAmount, setLpAmount] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  const { setProjection, clearProjections } = useRewardsProjection();
+
+  // Update projected rewards in context whenever lpAmount changes
+  useEffect(() => {
+    if (!pool) return;
+
+    const fraction = lpAmount / pool.totalShares;
+
+    setProjection({
+      poolId: pool.id,
+      token: pool.tokenA,
+      deltaLiquidity: -fraction * pool.liquidityA,
+    });
+
+    setProjection({
+      poolId: pool.id,
+      token: pool.tokenB,
+      deltaLiquidity: -fraction * pool.liquidityB,
+    });
+
+    // Clear projections when modal closes
+    return () => clearProjections();
+  }, [lpAmount, pool, setProjection, clearProjections]);
 
   // Projected rewards after removing LP
   const projectedRewards = useMemo(() => {
@@ -70,6 +95,7 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
       await removeLiquidity(client, account, poolId, lpAmount);
       alert("Liquidity removed successfully!");
       onClose();
+      clearProjections(); // Reset projections after successful remove
     } catch (err) {
       console.error(err);
       alert("Transaction failed!");
