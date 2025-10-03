@@ -25,24 +25,27 @@ export default function RewardsTracker() {
 
   const projectionDays = [15, 180, 365]; // days for projection
 
-  // Helper to merge pool rewards with projections
-  const getProjectedReward = (poolId: number, token: string, base: number) => {
-    const proj = projections.find(p => p.poolId === poolId && p.token === token);
-    if (!proj) return base;
-    return Math.max(base + proj.deltaLiquidity, 0); // prevent negative rewards
+  // Merge base rewards with active projections (from Add/Remove modals)
+  const getProjectedReward = (poolId: number, token: string, baseValue: number) => {
+    const proj = projections.find((p) => p.poolId === poolId && p.token === token);
+    if (!proj) return baseValue;
+    return Math.max(baseValue + proj.deltaLiquidity, 0); // clamp at 0
   };
 
   return (
     <div className="p-4 bg-black rounded border border-primary mt-4">
-      <h2 className="text-xl font-bold text-primary mb-4">Your Rewards</h2>
+      <h2 className="text-xl font-bold text-primary mb-4">
+        Your Rewards {projections.length > 0 && <span className="text-orange-400">(with projections)</span>}
+      </h2>
 
       {rewards.map((pool) => (
         <div key={pool.poolId} className="mb-6">
           {pool.rewards.map((r) => {
-            // Include projected changes from Add/Remove liquidity modals
+            // Adjust base values with liquidity projections
             const nextEpoch = getProjectedReward(pool.poolId, r.token, r.nextEpoch);
             const feesNextEpoch = getProjectedReward(pool.poolId, r.token, r.feesNextEpoch);
 
+            // Projections for future periods
             const projectedRewards = projectionDays.map((days) => nextEpoch * days);
             const projectedFees = projectionDays.map((days) => feesNextEpoch * days);
 
