@@ -10,6 +10,7 @@ interface RewardsProjectionContextType {
   projections: Projection[];
   setProjection: (proj: Projection) => void;
   clearProjections: () => void;
+  getProjectionForPool: (poolId: number, token: string) => number;
 }
 
 const RewardsProjectionContext = createContext<RewardsProjectionContextType | undefined>(undefined);
@@ -19,15 +20,20 @@ export const RewardsProjectionProvider = ({ children }: { children: ReactNode })
 
   const setProjection = (proj: Projection) => {
     setProjections((prev) => {
-      const other = prev.filter((p) => !(p.poolId === proj.poolId && p.token === proj.token));
-      return [...other, proj];
+      const filtered = prev.filter((p) => !(p.poolId === proj.poolId && p.token === proj.token));
+      return [...filtered, proj];
     });
   };
 
   const clearProjections = () => setProjections([]);
 
+  const getProjectionForPool = (poolId: number, token: string) => {
+    const proj = projections.find((p) => p.poolId === poolId && p.token === token);
+    return proj?.deltaLiquidity || 0;
+  };
+
   return (
-    <RewardsProjectionContext.Provider value={{ projections, setProjection, clearProjections }}>
+    <RewardsProjectionContext.Provider value={{ projections, setProjection, clearProjections, getProjectionForPool }}>
       {children}
     </RewardsProjectionContext.Provider>
   );
