@@ -19,6 +19,12 @@ export default function PoolList() {
     setTimeout(() => setShowModal(true), 0); // reopen in next tick
   };
 
+  const useMax = (pool: PoolInfo, setAmountA: (n: number) => void, setAmountB: (n: number) => void) => {
+    // Auto-fill the max available amounts for adding liquidity
+    setAmountA(pool.liquidityA);
+    setAmountB(pool.liquidityB);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {pools.map((pool) => (
@@ -29,7 +35,7 @@ export default function PoolList() {
           <p className="mb-2">Current APR: {pool.apr.toFixed(2)}%</p>
           <p className="mb-4">Swap Fees Next Epoch: {pool.swapFeesNextEpoch.toFixed(2)}</p>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <button
               className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-600 transition"
               onClick={() => openModal(pool, "add")}
@@ -42,6 +48,14 @@ export default function PoolList() {
             >
               Remove
             </button>
+            {modalMode === "add" && (
+              <button
+                className="bg-green-600 px-4 py-2 rounded hover:bg-green-500 transition"
+                onClick={() => selectedPool && useMax(selectedPool, () => {}, () => {})}
+              >
+                Use Max
+              </button>
+            )}
           </div>
         </div>
       ))}
