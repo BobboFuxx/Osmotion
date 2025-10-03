@@ -18,6 +18,7 @@ const RewardsProjectionContext = createContext<RewardsProjectionContextType | un
 export const RewardsProjectionProvider = ({ children }: { children: ReactNode }) => {
   const [projections, setProjections] = useState<Projection[]>([]);
 
+  // Add or update a projection
   const setProjection = (proj: Projection) => {
     setProjections((prev) => {
       const filtered = prev.filter((p) => !(p.poolId === proj.poolId && p.token === proj.token));
@@ -25,15 +26,24 @@ export const RewardsProjectionProvider = ({ children }: { children: ReactNode })
     });
   };
 
+  // Clear all projections
   const clearProjections = () => setProjections([]);
 
+  // Get projection for a specific pool/token
   const getProjectionForPool = (poolId: number, token: string) => {
     const proj = projections.find((p) => p.poolId === poolId && p.token === token);
     return proj?.deltaLiquidity || 0;
   };
 
   return (
-    <RewardsProjectionContext.Provider value={{ projections, setProjection, clearProjections, getProjectionForPool }}>
+    <RewardsProjectionContext.Provider
+      value={{
+        projections,
+        setProjection,
+        clearProjections,
+        getProjectionForPool,
+      }}
+    >
       {children}
     </RewardsProjectionContext.Provider>
   );
