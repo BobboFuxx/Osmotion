@@ -1,17 +1,26 @@
 // src/utils/blockchain.ts
-import { osmosis } from 'osmojs';
-import { SigningStargateClient, AminoTypes } from '@cosmjs/stargate';
-import { OfflineSigner, Registry } from '@cosmjs/proto-signing';
+import { osmosis } from "osmojs";
+import { SigningStargateClient, AminoTypes } from "@cosmjs/stargate";
+import { OfflineSigner, Registry } from "@cosmjs/proto-signing";
 import {
   osmosisProtoRegistry,
-  osmosisAminoConverters
-} from 'osmojs';
+  osmosisAminoConverters,
+} from "osmojs";
 
 // For fees
-import { FEES } from '@osmonauts/utils';
-import { calcAmountWithSlippage } from '@osmonauts/math';
+import { FEES } from "@osmonauts/utils";
 
-const { joinPool, exitPool } = osmosis.gamm.v1beta1.MessageComposer.withTypeUrl;
+const {
+  joinPool,
+  exitPool,
+  joinSwapExternAmountIn,
+  joinSwapShareAmountOut,
+  exitSwapExternAmountOut,
+  exitSwapShareAmountIn,
+  swapExactAmountIn,
+  swapExactAmountOut,
+} = osmosis.gamm.v1beta1.MessageComposer.withTypeUrl;
+
 const { lockTokens, beginUnlocking, beginUnlockingAll } = osmosis.lockup.MessageComposer.withTypeUrl;
 const { addToGauge, createGauge } = osmosis.incentives.MessageComposer.withTypeUrl;
 
@@ -20,7 +29,9 @@ export interface BlockchainClient {
   signerAddress: string;
 }
 
-// Initialize signing client
+/**
+ * Initialize signing client for Osmosis
+ */
 export async function initClient(
   rpcEndpoint: string,
   signer: OfflineSigner
@@ -31,35 +42,39 @@ export async function initClient(
   const client = await SigningStargateClient.connectWithSigner(rpcEndpoint, signer, {
     registry,
     aminoTypes,
-    gasPrice: FEES.osmosis.swapExactAmountIn('medium').gasPrice // default fee
+    gasPrice: FEES.osmosis.swapExactAmountIn("medium").gasPrice,
   });
 
   const accounts = await signer.getAccounts();
   return { client, signerAddress: accounts[0].address };
 }
 
-// Add liquidity to a pool
+/**
+ * Add liquidity to a pool
+ */
 export async function addLiquidity(
   client: SigningStargateClient,
   sender: string,
   poolId: number,
   tokenA: { denom: string; amount: string },
   tokenB: { denom: string; amount: string },
-  shareOutMin?: string // optional: min LP tokens
+  shareOutMin?: string
 ) {
   const msg = joinPool({
     sender,
     poolId,
-    shareOutAmount: shareOutMin || '0',
-    tokenInMaxs: [tokenA, tokenB]
+    shareOutAmount: shareOutMin || "0",
+    tokenInMaxs: [tokenA, tokenB],
   });
 
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
   const res = await client.signAndBroadcast(sender, [msg], fee);
-  return res;
+  return res.txHash;
 }
 
-// Remove liquidity from a pool
+/**
+ * Remove liquidity from a pool
+ */
 export async function removeLiquidity(
   client: SigningStargateClient,
   sender: string,
@@ -71,15 +86,17 @@ export async function removeLiquidity(
     sender,
     poolId,
     shareInAmount,
-    tokenOutMins
+    tokenOutMins: tokenOutMins || [],
   });
 
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
   const res = await client.signAndBroadcast(sender, [msg], fee);
-  return res;
+  return res.txHash;
 }
 
-// Lock LP tokens for incentives
+/**
+ * Lock LP tokens for incentives
+ */
 export async function lockLP(
   client: SigningStargateClient,
   sender: string,
@@ -88,33 +105,42 @@ export async function lockLP(
 ) {
   const msg = lockTokens({
     owner: sender,
-    duration: durationSeconds,
-    coins: [amount]
+    duration: durationSeconds.toString(),
+    coins: [amount],
   });
 
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
-  return client.signAndBroadcast(sender, [msg], fee);
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
+  const res = await client.signAndBroadcast(sender, [msg], fee);
+  return res.txHash;
 }
 
-// Begin unlocking LP
+/**
+ * Begin unlocking LP
+ */
 export async function unlockLP(
   client: SigningStargateClient,
   sender: string,
   lockId: string
 ) {
   const msg = beginUnlocking({ owner: sender, ID: lockId });
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
-  return client.signAndBroadcast(sender, [msg], fee);
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
+  const res = await client.signAndBroadcast(sender, [msg], fee);
+  return res.txHash;
 }
 
-// Begin unlocking all LPs
+/**
+ * Begin unlocking all LPs
+ */
 export async function unlockAllLP(client: SigningStargateClient, sender: string) {
   const msg = beginUnlockingAll({ owner: sender });
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
-  return client.signAndBroadcast(sender, [msg], fee);
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
+  const res = await client.signAndBroadcast(sender, [msg], fee);
+  return res.txHash;
 }
 
-// Optional: add to a gauge
+/**
+ * Add to a gauge
+ */
 export async function addLiquidityToGauge(
   client: SigningStargateClient,
   sender: string,
@@ -122,11 +148,14 @@ export async function addLiquidityToGauge(
   amount: { denom: string; amount: string }
 ) {
   const msg = addToGauge({ sender, gaugeId, rewards: [amount] });
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
-  return client.signAndBroadcast(sender, [msg], fee);
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
+  const res = await client.signAndBroadcast(sender, [msg], fee);
+  return res.txHash;
 }
 
-// Optional: create a gauge
+/**
+ * Create a new gauge
+ */
 export async function createNewGauge(
   client: SigningStargateClient,
   sender: string,
@@ -138,13 +167,14 @@ export async function createNewGauge(
   const msg = createGauge({
     isPerpetual,
     owner: sender,
-    distributeTo: { lockQueryType: 'ByDuration', duration: '86400' }, // example: 1 day
+    distributeTo: { lockQueryType: "ByDuration", duration: "86400" }, // example: 1 day
     coins,
     startTime: distributionStartTime,
-    poolId: poolIds[0], // single pool for example
-    numberOfEpochsPaidOver: 1
+    poolId: poolIds[0], // only first pool for now
+    numberOfEpochsPaidOver: 1,
   });
 
-  const fee = FEES.osmosis.swapExactAmountIn('medium');
-  return client.signAndBroadcast(sender, [msg], fee);
+  const fee = FEES.osmosis.swapExactAmountIn("medium");
+  const res = await client.signAndBroadcast(sender, [msg], fee);
+  return res.txHash;
 }
