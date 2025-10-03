@@ -12,9 +12,11 @@ export default function PoolList() {
   if (!pools.length) return <p className="text-white">No pools found.</p>;
 
   const openModal = (pool: PoolInfo, mode: "add" | "remove") => {
+    // Reset modal state when opening a new pool
     setSelectedPool(pool);
     setModalMode(mode);
-    setShowModal(true);
+    setShowModal(false); // temporarily close to force re-render
+    setTimeout(() => setShowModal(true), 0); // reopen in next tick
   };
 
   return (
@@ -46,6 +48,7 @@ export default function PoolList() {
 
       {showModal && selectedPool && (
         <PoolModal
+          key={selectedPool.id + modalMode} // force full remount if pool or mode changes
           poolId={selectedPool.id}
           initialMode={modalMode}
           onClose={() => setShowModal(false)}
