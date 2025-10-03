@@ -112,17 +112,21 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
   // Execute on-chain remove liquidity tx
   const handleRemove = async () => {
     if (!client || !account || !pool)
-      return alert("Wallet not connected or pool not found");
+      return alert("⚠️ Wallet not connected or pool not found");
 
     setLoading(true);
     try {
-      await removeLiquidity(client, account, poolId, lpAmount);
-      alert("Liquidity removed successfully!");
-      onClose();
-      clearProjections(); // reset after action
+      const res = await removeLiquidity(client, account, poolId, lpAmount);
+      if (res.success) {
+        alert(`✅ Liquidity removed! Tx Hash: ${res.txHash}`);
+        clearProjections(); // reset after success
+        onClose();
+      } else {
+        alert("⚠️ Remove liquidity failed");
+      }
     } catch (err) {
       console.error(err);
-      alert("Transaction failed!");
+      alert("❌ Transaction failed - check console for details.");
     } finally {
       setLoading(false);
     }
