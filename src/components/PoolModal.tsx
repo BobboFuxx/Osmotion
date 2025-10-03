@@ -20,16 +20,17 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface PoolModalProps {
   poolId: number;
+  initialMode?: "add" | "remove"; // optional, defaults to "add"
   onClose: () => void;
 }
 
-export default function PoolModal({ poolId, onClose }: PoolModalProps) {
+export default function PoolModal({ poolId, initialMode = "add", onClose }: PoolModalProps) {
   const { account, client } = useWallet();
   const { pools } = usePools();
   const pool = pools.find((p) => p.id === poolId);
   const { setProjection, clearProjections } = useRewardsProjection();
 
-  const [mode, setMode] = useState<"add" | "remove">("add");
+  const [mode, setMode] = useState<"add" | "remove">(initialMode);
   const [amountA, setAmountA] = useState(0);
   const [amountB, setAmountB] = useState(0);
   const [lpAmount, setLpAmount] = useState(0);
