@@ -63,7 +63,7 @@ export const LimitOrdersProvider: React.FC<{
       if (!client) return;
 
       await placeOrder(client.client, client.signerAddress, orderbookAddress, {
-        pool_id: 1, // TODO: pick correct pool
+        pool_id: 1, // TODO: pick correct pool dynamically
         token_in: { denom: order.baseDenom, amount: order.quantity },
         token_out: order.quoteDenom,
         target_price: parseFloat(order.price),
@@ -84,10 +84,12 @@ export const LimitOrdersProvider: React.FC<{
     [client, orderbookAddress, refreshOrders]
   );
 
+  // Auto-refresh every 10 seconds
   useEffect(() => {
-    if (client) {
-      refreshOrders();
-    }
+    if (!client) return;
+    refreshOrders();
+    const interval = setInterval(refreshOrders, 10_000);
+    return () => clearInterval(interval);
   }, [client, refreshOrders]);
 
   return (
