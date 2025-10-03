@@ -16,14 +16,17 @@ const PlaceOrderForm: React.FC<PlaceOrderFormProps> = ({ baseDenom, quoteDenom }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!price || !quantity) return;
+    const trimmedPrice = price.trim();
+    const trimmedQuantity = quantity.trim();
+    if (!trimmedPrice || !trimmedQuantity) return;
+    if (parseFloat(trimmedPrice) <= 0 || parseFloat(trimmedQuantity) <= 0) return;
 
     setLoading(true);
     try {
       await placeOrder({
         side,
-        price,
-        quantity,
+        price: trimmedPrice,
+        quantity: trimmedQuantity,
         baseDenom,
         quoteDenom,
       });
@@ -37,14 +40,17 @@ const PlaceOrderForm: React.FC<PlaceOrderFormProps> = ({ baseDenom, quoteDenom }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border p-4 rounded mb-4 bg-gray-50 dark:bg-gray-700">
-      <div className="flex gap-4 mb-2">
+    <form
+      onSubmit={handleSubmit}
+      className="border p-4 rounded mb-4 bg-gray-50 dark:bg-gray-700"
+    >
+      <div className="flex flex-col md:flex-row gap-4 mb-2">
         <label className="flex-1">
           Side:
           <select
             value={side}
             onChange={(e) => setSide(e.target.value as "buy" | "sell")}
-            className="ml-2 p-1 rounded"
+            className="ml-2 p-1 rounded w-full"
           >
             <option value="buy">Buy</option>
             <option value="sell">Sell</option>
@@ -58,6 +64,7 @@ const PlaceOrderForm: React.FC<PlaceOrderFormProps> = ({ baseDenom, quoteDenom }
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             className="ml-2 p-1 rounded w-full"
+            min="0"
           />
         </label>
         <label className="flex-1">
@@ -68,6 +75,7 @@ const PlaceOrderForm: React.FC<PlaceOrderFormProps> = ({ baseDenom, quoteDenom }
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             className="ml-2 p-1 rounded w-full"
+            min="0"
           />
         </label>
       </div>
@@ -78,7 +86,11 @@ const PlaceOrderForm: React.FC<PlaceOrderFormProps> = ({ baseDenom, quoteDenom }
           side === "buy" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
         }`}
       >
-        {loading ? "Placing..." : side === "buy" ? "Place Buy Order" : "Place Sell Order"}
+        {loading
+          ? "Placing..."
+          : side === "buy"
+          ? "Place Buy Order"
+          : "Place Sell Order"}
       </button>
     </form>
   );
