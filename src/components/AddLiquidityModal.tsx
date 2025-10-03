@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { addLiquidity } from "../utils/blockchain";
 import { usePools } from "../hooks/usePools";
@@ -12,6 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { useRewardsProjection } from "../hooks/useRewardsProjection";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -29,7 +30,29 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
   const [amountB, setAmountB] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Projected rewards
+  const { setProjection, clearProjections } = useRewardsProjection();
+
+  // Update projected rewards in context whenever amountA or amountB changes
+  useEffect(() => {
+    if (!pool) return;
+
+    setProjection({
+      poolId: pool.id,
+      token: pool.tokenA,
+      deltaLiquidity: amountA,
+    });
+    setProjection({
+      poolId: pool.id,
+      token: pool.tokenB,
+      deltaLiquidity: amountB,
+    });
+
+    // Clear projections when modal closes
+    return () => clearProjections();
+  }, [amountA, amountB, pool, setProjection, clearProjections]);
+
+  // Chart data
+  const projectionDays = [15, 180, 365];
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
     const totalShares = pool.totalShares + amountA + amountB;
@@ -40,7 +63,6 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
     };
   }, [amountA, amountB, pool]);
 
-  const projectionDays = [15, 180, 365];
   const chartData = useMemo(() => {
     if (!pool) return null;
     const projectedA = projectionDays.map((d) => projectedRewards[pool.tokenA] * d);
@@ -60,9 +82,7 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
     plugins: {
       legend: { position: "top" },
       title: { display: true, text: `Projected Rewards for Pool ${pool?.id}` },
-      tooltip: {
-        callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}` },
-      },
+      tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}` } },
     },
   };
 
@@ -73,6 +93,7 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
       await addLiquidity(client, account, poolId, amountA, pool.tokenA, amountB, pool.tokenB);
       alert("Liquidity added successfully!");
       onClose();
+      clearProjections(); // Reset projections after successful add
     } catch (err) {
       console.error(err);
       alert("Transaction failed!");
@@ -88,8 +109,20 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
       <div className="bg-purple-700 p-6 rounded w-96 text-white overflow-auto max-h-[90vh]">
         <h2 className="text-xl font-bold mb-4">Add Liquidity - Pool {pool.id}</h2>
 
-        <input type="number" placeholder={pool.tokenA} className="w-full mb-2 text-black rounded px-2 py-1" value={amountA} onChange={(e) => setAmountA(Number(e.target.value))} />
-        <input type="number" placeholder={pool.tokenB} className="w-full mb-4 text-black rounded px-2 py-1" value={amountB} onChange={(e) => setAmountB(Number(e.target.value))} />
+        <input
+          type="number"
+          placeholder={pool.tokenA}
+          className="w-full mb-2 text-black rounded px-2 py-1"
+          value={amountA}
+          onChange={(e) => setAmountA(Number(e.target.value))}
+        />
+        <input
+          type="number"
+          placeholder={pool.tokenB}
+          className="w-full mb-4 text-black rounded px-2 py-1"
+          value={amountB}
+          onChange={(e) => setAmountB(Number(e.target.value))}
+        />
 
         {chartData && <Bar data={chartData} options={options} className="mb-4" />}
 
