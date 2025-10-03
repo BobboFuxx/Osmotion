@@ -28,7 +28,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const { account, client } = useWallet();
   const { pools } = usePools();
   const pool = pools.find((p) => p.id === poolId);
-  const { setProjection, clearProjections } = useRewardsProjection();
+  const { setProjection, clearProjections, getProjectionForPool } = useRewardsProjection();
 
   const [mode, setMode] = useState<"add" | "remove">(initialMode);
   const [amountA, setAmountA] = useState(0);
@@ -37,10 +37,9 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const [slippage, setSlippage] = useState(0.5);
   const [loading, setLoading] = useState(false);
 
-  // Update reward projections based on mode and inputs
+  // Update projections whenever relevant values change
   useEffect(() => {
     if (!pool) return;
-    clearProjections();
 
     if (mode === "add") {
       setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: Math.max(amountA, 0) });
@@ -50,37 +49,40 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
       setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: -fraction * pool.liquidityA });
       setProjection({ poolId: pool.id, token: pool.tokenB, deltaLiquidity: -fraction * pool.liquidityB });
     }
+  }, [amountA, amountB, lpAmount, pool, mode, setProjection]);
 
+  useEffect(() => {
+    // Clear projections when modal closes
     return () => clearProjections();
-  }, [amountA, amountB, lpAmount, pool, mode, setProjection, clearProjections]);
+  }, [clearProjections]);
 
   const projectionDays = [15, 180, 365];
 
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
+
     if (mode === "add") {
-      const totalShares = pool.totalShares + amountA + amountB;
-      const shareFraction = totalShares > 0 ? (amountA + amountB) / totalShares : 0;
+      const deltaA = getProjectionForPool(pool.id, pool.tokenA);
+      const deltaB = getProjectionForPool(pool.id, pool.tokenB);
+      const totalShares = pool.totalShares + deltaA + deltaB;
+      const shareFraction = totalShares > 0 ? (deltaA + deltaB) / totalShares : 0;
+
       return {
-        [pool.tokenA]:
-          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-        [pool.tokenB]:
-          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenA]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenB]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
       };
     } else {
-      const remainingShares = pool.totalShares - lpAmount;
-      const shareFraction = remainingShares / pool.totalShares;
+      const fraction = lpAmount / pool.totalShares;
       return {
-        [pool.tokenA]:
-          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-        [pool.tokenB]:
-          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenA]: pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenB]: pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
       };
     }
-  }, [amountA, amountB, lpAmount, pool, mode]);
+  }, [amountA, amountB, lpAmount, pool, mode, getProjectionForPool]);
 
   const chartData = useMemo(() => {
     if (!pool) return null;
+
     const projectedA = projectionDays.map((d) => projectedRewards[pool.tokenA] * d);
     const projectedB = projectionDays.map((d) => projectedRewards[pool.tokenB] * d);
 
@@ -148,29 +150,84 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
 
         {/* Mode Selector */}
         <div className="flex mb-4">
-          <button className={`flex-1 py-2 rounded-l font-bold ${mode === "add" ? "bg-green-600" : "bg-gray-600"}`} onClick={() => setMode("add")}>Add Liquidity</button>
-          <button className={`flex-1 py-2 rounded-r font-bold ${mode === "remove" ? "bg-red-600" : "bg-gray-600"}`} onClick={() => setMode("remove")}>Remove Liquidity</button>
+          <button
+            className={`flex-1 py-2 rounded-l font-bold ${mode === "add" ? "bg-green-600" : "bg-gray-600"}`}
+            onClick={() => setMode("add")}
+          >
+            Add Liquidity
+          </button>
+          <button
+            className={`flex-1 py-2 rounded-r font-bold ${mode === "remove" ? "bg-red-600" : "bg-gray-600"}`}
+            onClick={() => setMode("remove")}
+          >
+            Remove Liquidity
+          </button>
         </div>
 
         {/* Inputs */}
         {mode === "add" ? (
           <>
-            <input type="number" placeholder={pool.tokenA} className="w-full mb-2 text-black rounded px-2 py-1" value={amountA} onChange={(e) => setAmountA(Number(e.target.value))} />
-            <input type="number" placeholder={pool.tokenB} className="w-full mb-2 text-black rounded px-2 py-1" value={amountB} onChange={(e) => setAmountB(Number(e.target.value))} />
-            <input type="number" placeholder="Slippage %" className="w-full mb-4 text-black rounded px-2 py-1" value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
+            <input
+              type="number"
+              placeholder={pool.tokenA}
+              className="w-full mb-2 text-black rounded px-2 py-1"
+              value={amountA}
+              onChange={(e) => setAmountA(Number(e.target.value))}
+            />
+            <input
+              type="number"
+              placeholder={pool.tokenB}
+              className="w-full mb-2 text-black rounded px-2 py-1"
+              value={amountB}
+              onChange={(e) => setAmountB(Number(e.target.value))}
+            />
+            <input
+              type="number"
+              placeholder="Slippage %"
+              className="w-full mb-4 text-black rounded px-2 py-1"
+              value={slippage}
+              onChange={(e) => setSlippage(Number(e.target.value))}
+            />
           </>
         ) : (
-          <input type="number" placeholder="LP Tokens to Remove" className="w-full mb-4 text-black rounded px-2 py-1" value={lpAmount} onChange={(e) => setLpAmount(Number(e.target.value))} />
+          <input
+            type="number"
+            placeholder="LP Tokens to Remove"
+            className="w-full mb-4 text-black rounded px-2 py-1"
+            value={lpAmount}
+            onChange={(e) => setLpAmount(Number(e.target.value))}
+          />
         )}
 
         {/* Chart */}
-        {chartData && <Bar data={chartData} options={{ responsive: true, plugins: { legend: { position: "top" }, title: { display: true, text: `Projected Rewards for Pool ${pool.id}` }, tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}` } } } }} className="mb-4" />}
+        {chartData && (
+          <Bar
+            data={chartData}
+            options={{
+              responsive: true,
+              plugins: {
+                legend: { position: "top" },
+                title: { display: true, text: `Projected Rewards for Pool ${pool.id}` },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}`,
+                  },
+                },
+              },
+            }}
+            className="mb-4"
+          />
+        )}
 
         {/* Actions */}
         <div className="flex justify-between">
-          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
+          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>
+            Cancel
+          </button>
           <button
-            className={`px-4 py-2 rounded font-bold ${mode === "add" ? "bg-white text-purple-700" : "bg-white text-orange-600"}`}
+            className={`px-4 py-2 rounded font-bold ${
+              mode === "add" ? "bg-white text-purple-700" : "bg-white text-orange-600"
+            }`}
             onClick={mode === "add" ? handleAdd : handleRemove}
             disabled={loading}
           >
