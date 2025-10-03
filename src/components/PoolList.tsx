@@ -11,6 +11,12 @@ export default function PoolList() {
   if (loading) return <p className="text-white">Loading pools...</p>;
   if (!pools.length) return <p className="text-white">No pools found.</p>;
 
+  const openModal = (pool: PoolInfo, mode: "add" | "remove") => {
+    setSelectedPool(pool);
+    setModalMode(mode);
+    setShowModal(true);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {pools.map((pool) => (
@@ -24,21 +30,13 @@ export default function PoolList() {
           <div className="flex gap-2">
             <button
               className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-600 transition"
-              onClick={() => {
-                setSelectedPool(pool);
-                setModalMode("add");
-                setShowModal(true);
-              }}
+              onClick={() => openModal(pool, "add")}
             >
               Add
             </button>
             <button
               className="bg-orange-600 px-4 py-2 rounded hover:bg-orange-500 transition"
-              onClick={() => {
-                setSelectedPool(pool);
-                setModalMode("remove");
-                setShowModal(true);
-              }}
+              onClick={() => openModal(pool, "remove")}
             >
               Remove
             </button>
@@ -49,7 +47,7 @@ export default function PoolList() {
       {showModal && selectedPool && (
         <PoolModal
           poolId={selectedPool.id}
-          initialMode={modalMode}  // <--- pass initial mode here
+          initialMode={modalMode}
           onClose={() => setShowModal(false)}
         />
       )}
