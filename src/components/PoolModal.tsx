@@ -28,7 +28,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const { account, client } = useWallet();
   const { pools } = usePools();
   const pool = pools.find((p) => p.id === poolId);
-  const { setProjection, clearProjections, getProjectionForPool } = useRewardsProjection();
+  const { setProjection, clearProjections } = useRewardsProjection();
 
   const [mode, setMode] = useState<"add" | "remove">(initialMode);
   const [amountA, setAmountA] = useState(0);
@@ -37,48 +37,54 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const [slippage, setSlippage] = useState(0.5);
   const [loading, setLoading] = useState(false);
 
-  // Update projections whenever relevant values change
+  // Update reward projections
   useEffect(() => {
     if (!pool) return;
+    clearProjections();
 
     if (mode === "add") {
-      setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: Math.max(amountA, 0) });
-      setProjection({ poolId: pool.id, token: pool.tokenB, deltaLiquidity: Math.max(amountB, 0) });
+      const totalLiquidityValue = pool.liquidityA + pool.liquidityB;
+      const deltaValue = amountA + amountB;
+      const estimatedLP = totalLiquidityValue > 0 ? (deltaValue / totalLiquidityValue) * pool.totalShares : 0;
+
+      setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: amountA });
+      setProjection({ poolId: pool.id, token: pool.tokenB, deltaLiquidity: amountB });
+      setLpAmount(estimatedLP);
     } else if (mode === "remove" && lpAmount > 0) {
       const fraction = lpAmount / pool.totalShares;
       setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: -fraction * pool.liquidityA });
       setProjection({ poolId: pool.id, token: pool.tokenB, deltaLiquidity: -fraction * pool.liquidityB });
     }
-  }, [amountA, amountB, lpAmount, pool, mode, setProjection]);
+  }, [amountA, amountB, lpAmount, pool, mode, setProjection, clearProjections]);
 
-  useEffect(() => {
-    // Clear projections when modal closes
-    return () => clearProjections();
-  }, [clearProjections]);
+  useEffect(() => () => clearProjections(), [clearProjections]);
 
   const projectionDays = [15, 180, 365];
 
+  // Accurate projected rewards based on LP share fraction
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
 
     if (mode === "add") {
-      const deltaA = getProjectionForPool(pool.id, pool.tokenA);
-      const deltaB = getProjectionForPool(pool.id, pool.tokenB);
-      const totalShares = pool.totalShares + deltaA + deltaB;
-      const shareFraction = totalShares > 0 ? (deltaA + deltaB) / totalShares : 0;
+      const totalSharesAfter = pool.totalShares + lpAmount;
+      const shareFraction = totalSharesAfter > 0 ? lpAmount / totalSharesAfter : 0;
 
       return {
-        [pool.tokenA]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-        [pool.tokenB]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenA]:
+          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenB]:
+          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
       };
     } else {
       const fraction = lpAmount / pool.totalShares;
       return {
-        [pool.tokenA]: pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-        [pool.tokenB]: pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenA]:
+          pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenB]:
+          pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
       };
     }
-  }, [amountA, amountB, lpAmount, pool, mode, getProjectionForPool]);
+  }, [lpAmount, pool, mode]);
 
   const chartData = useMemo(() => {
     if (!pool) return null;
@@ -103,10 +109,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
     try {
       const tokenA = { denom: pool.tokenA, amount: amountA.toString() };
       const tokenB = { denom: pool.tokenB, amount: amountB.toString() };
-      const totalShares = pool.totalShares + amountA + amountB;
-      const shareFraction = (amountA + amountB) / totalShares;
-      const estimatedLP = shareFraction * totalShares;
-      const shareOutMin = Math.floor(calcAmountWithSlippage(estimatedLP, -slippage / 100)).toString();
+      const shareOutMin = Math.floor(calcAmountWithSlippage(lpAmount, -slippage / 100)).toString();
 
       const txHash = await addLiquidity(client.client, account, pool.id, tokenA, tokenB, shareOutMin);
       alert(`✅ Liquidity added! Tx Hash: ${txHash}`);
@@ -208,11 +211,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
               plugins: {
                 legend: { position: "top" },
                 title: { display: true, text: `Projected Rewards for Pool ${pool.id}` },
-                tooltip: {
-                  callbacks: {
-                    label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}`,
-                  },
-                },
+                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw.toFixed(4)}` } },
               },
             }}
             className="mb-4"
@@ -225,9 +224,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
             Cancel
           </button>
           <button
-            className={`px-4 py-2 rounded font-bold ${
-              mode === "add" ? "bg-white text-purple-700" : "bg-white text-orange-600"
-            }`}
+            className={`px-4 py-2 rounded font-bold ${mode === "add" ? "bg-white text-purple-700" : "bg-white text-orange-600"}`}
             onClick={mode === "add" ? handleAdd : handleRemove}
             disabled={loading}
           >
