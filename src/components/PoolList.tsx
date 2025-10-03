@@ -49,6 +49,7 @@ export default function PoolList() {
       {showModal && selectedPool && (
         <PoolModal
           poolId={selectedPool.id}
+          initialMode={modalMode}  // <--- pass initial mode here
           onClose={() => setShowModal(false)}
         />
       )}
