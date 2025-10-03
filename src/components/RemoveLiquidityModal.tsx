@@ -36,19 +36,19 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
   // Sync projected changes into RewardsProjection context
   useEffect(() => {
     if (!pool) return;
+    if (lpAmount <= 0) return clearProjections();
 
     const fraction = lpAmount / pool.totalShares;
 
     setProjection({
       poolId: pool.id,
       token: pool.tokenA,
-      deltaLiquidity: -fraction * pool.liquidityA, // reduce liquidityA
+      deltaLiquidity: -fraction * pool.liquidityA,
     });
-
     setProjection({
       poolId: pool.id,
       token: pool.tokenB,
-      deltaLiquidity: -fraction * pool.liquidityB, // reduce liquidityB
+      deltaLiquidity: -fraction * pool.liquidityB,
     });
 
     return () => clearProjections();
@@ -57,7 +57,6 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
   // Projected rewards after removing liquidity
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
-
     const remainingShares = pool.totalShares - lpAmount;
     const shareFraction = remainingShares / pool.totalShares;
 
@@ -77,7 +76,6 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
   const projectionDays = [15, 180, 365];
   const chartData = useMemo(() => {
     if (!pool) return null;
-
     const projectedA = projectionDays.map((d) => projectedRewards[pool.tokenA] * d);
     const projectedB = projectionDays.map((d) => projectedRewards[pool.tokenB] * d);
 
@@ -111,20 +109,25 @@ export default function RemoveLiquidityModal({ poolId, onClose }: RemoveLiquidit
     },
   };
 
-  // Execute on-chain remove liquidity using real Osmosis logic
+  // Execute on-chain remove liquidity tx using real Osmosis logic
   const handleRemove = async () => {
-    if (!client || !account || !pool)
-      return alert("⚠️ Wallet not connected or pool not found");
+    if (!client || !account || !pool) return alert("⚠️ Wallet not connected or pool not found");
+    if (lpAmount <= 0) return alert("⚠️ Enter a valid LP token amount");
 
     setLoading(true);
     try {
-      // Minimum LP tokens to burn (optional: add slippage calculation)
-      const minShareOut = "0";
+      const shareInAmount = lpAmount.toString();
 
-      const txHash = await removeLiquidity(client.client, account, pool.id, lpAmount, minShareOut);
+      // Optional: min tokens out can be added for slippage protection
+      const tokenOutMins = [
+        { denom: pool.tokenA, amount: "0" },
+        { denom: pool.tokenB, amount: "0" },
+      ];
+
+      const txHash = await removeLiquidity(client.client, account, pool.id, shareInAmount, tokenOutMins);
 
       alert(`✅ Liquidity removed! Tx Hash: ${txHash}`);
-      clearProjections(); // reset after success
+      clearProjections();
       onClose();
     } catch (err) {
       console.error(err);
