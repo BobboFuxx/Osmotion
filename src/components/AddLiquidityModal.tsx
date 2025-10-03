@@ -1,3 +1,5 @@
+// src/components/AddLiquidityModal.tsx
+
 import { useState, useMemo, useEffect } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { addLiquidity } from "../utils/blockchain";
@@ -95,7 +97,7 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
   const options = {
     responsive: true,
     plugins: {
-      legend: { position: "top" },
+      legend: { position: "top" as const },
       title: { display: true, text: `Projected Rewards for Pool ${pool?.id}` },
       tooltip: {
         callbacks: {
@@ -105,28 +107,24 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
     },
   };
 
+  // Execute on-chain add liquidity tx using real Osmosis logic
   const handleAdd = async () => {
-    if (!client || !account || !pool)
-      return alert("⚠️ Wallet not connected or pool not found");
+    if (!client || !account || !pool) return alert("⚠️ Wallet not connected or pool not found");
 
     setLoading(true);
     try {
-      const res = await addLiquidity(
-        client,
-        account,
-        poolId,
-        amountA,
-        pool.tokenA,
-        amountB,
-        pool.tokenB
-      );
-      if (res.success) {
-        alert(`✅ Liquidity added! Tx Hash: ${res.txHash}`);
-        clearProjections(); // Reset projections after confirmed add
-        onClose();
-      } else {
-        alert("⚠️ Liquidity add failed");
-      }
+      // Format token amounts for blockchain call
+      const tokenA = { denom: pool.tokenA, amount: amountA.toString() };
+      const tokenB = { denom: pool.tokenB, amount: amountB.toString() };
+
+      // Minimum LP tokens to receive (optional: implement slippage calculation)
+      const shareOutMin = "0";
+
+      const txHash = await addLiquidity(client.client, account, pool.id, tokenA, tokenB, shareOutMin);
+
+      alert(`✅ Liquidity added! Tx Hash: ${txHash}`);
+      clearProjections();
+      onClose();
     } catch (err) {
       console.error(err);
       alert("❌ Transaction failed - check console for details.");
