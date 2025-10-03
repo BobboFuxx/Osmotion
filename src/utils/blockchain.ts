@@ -21,12 +21,11 @@ export async function addLiquidity(
   });
 
   // TODO: Replace with actual CosmJS tx execution
-  // For now, pretend success with a delay
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  return { success: true };
+  return { success: true, txHash: "FAKE_TX_HASH_ADD" };
 }
 
-// Example placeholder for removing liquidity
+// Placeholder for removing liquidity
 export async function removeLiquidity(
   client: any,
   account: string,
@@ -42,5 +41,22 @@ export async function removeLiquidity(
 
   // TODO: Replace with actual CosmJS tx execution
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  return { success: true };
+  return { success: true, txHash: "FAKE_TX_HASH_REMOVE" };
+}
+
+// Placeholder for claiming rewards
+export async function claimRewards(
+  client: any,
+  account: string,
+  poolId: number
+) {
+  console.log("Simulating claimRewards:", {
+    client,
+    account,
+    poolId,
+  });
+
+  // TODO: Replace with actual CosmJS tx execution
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  return { success: true, txHash: "FAKE_TX_HASH_REWARD" };
 }
