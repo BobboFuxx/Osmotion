@@ -1,6 +1,6 @@
 // src/contexts/LimitOrdersContext.tsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { BlockchainClient, orderbookPlaceOrder, orderbookCancelOrder, orderbookQueryOrders } from "../utils/blockchain";
+import { BlockchainClient, placeOrder, cancelOrder, queryOrders } from "../utils/blockchain";
 
 export interface LimitOrder {
   id: string;
@@ -34,8 +34,23 @@ export const LimitOrdersProvider: React.FC<{
     if (!client) return;
     try {
       setLoading(true);
-      const result = await orderbookQueryOrders(client.client, orderbookAddress, client.signerAddress);
-      setOrders(result.orders || []);
+      // Query all orders for this user
+      const result = await queryOrders(client.client, orderbookAddress, {
+        orders_by_user: { user: client.signerAddress },
+      });
+
+      // Map contract response -> our LimitOrder type
+      const mapped: LimitOrder[] = (result.orders || []).map((o: any) => ({
+        id: o.id,
+        side: o.side,
+        price: o.price,
+        quantity: o.quantity,
+        baseDenom: o.base_denom,
+        quoteDenom: o.quote_denom,
+        status: o.status,
+      }));
+
+      setOrders(mapped);
     } catch (err) {
       console.error("Failed to fetch orders:", err);
     } finally {
@@ -43,19 +58,27 @@ export const LimitOrdersProvider: React.FC<{
     }
   }, [client, orderbookAddress]);
 
-  const placeOrder = useCallback(
+  const place = useCallback(
     async (order: Omit<LimitOrder, "id" | "status">) => {
       if (!client) return;
-      await orderbookPlaceOrder(client.client, client.signerAddress, orderbookAddress, order);
+
+      await placeOrder(client.client, client.signerAddress, orderbookAddress, {
+        pool_id: 1, // TODO: pick correct pool
+        token_in: { denom: order.baseDenom, amount: order.quantity },
+        token_out: order.quoteDenom,
+        target_price: parseFloat(order.price),
+        side: order.side,
+      });
+
       await refreshOrders();
     },
     [client, orderbookAddress, refreshOrders]
   );
 
-  const cancelOrder = useCallback(
+  const cancel = useCallback(
     async (orderId: string) => {
       if (!client) return;
-      await orderbookCancelOrder(client.client, client.signerAddress, orderbookAddress, orderId);
+      await cancelOrder(client.client, client.signerAddress, orderbookAddress, orderId);
       await refreshOrders();
     },
     [client, orderbookAddress, refreshOrders]
@@ -72,8 +95,8 @@ export const LimitOrdersProvider: React.FC<{
       value={{
         orders,
         loading,
-        placeOrder,
-        cancelOrder,
+        placeOrder: place,
+        cancelOrder: cancel,
         refreshOrders,
       }}
     >
