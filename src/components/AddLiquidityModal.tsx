@@ -32,11 +32,10 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
 
   const { setProjection, clearProjections } = useRewardsProjection();
 
-  // Update projections when amounts change
+  // Update reward projections when inputs change
   useEffect(() => {
     if (!pool) return;
 
-    // Apply projections for token A and token B
     setProjection({
       poolId: pool.id,
       token: pool.tokenA,
@@ -48,7 +47,6 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
       deltaLiquidity: Math.max(amountB, 0),
     });
 
-    // Clear projections only when modal unmounts
     return () => clearProjections();
   }, [amountA, amountB, pool, setProjection, clearProjections]);
 
@@ -109,11 +107,11 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
 
   const handleAdd = async () => {
     if (!client || !account || !pool)
-      return alert("Wallet not connected or pool not found");
+      return alert("⚠️ Wallet not connected or pool not found");
 
     setLoading(true);
     try {
-      await addLiquidity(
+      const res = await addLiquidity(
         client,
         account,
         poolId,
@@ -122,12 +120,16 @@ export default function AddLiquidityModal({ poolId, onClose }: AddLiquidityModal
         amountB,
         pool.tokenB
       );
-      alert("Liquidity added successfully!");
-      onClose();
-      clearProjections(); // Reset projections after confirmed add
+      if (res.success) {
+        alert(`✅ Liquidity added! Tx Hash: ${res.txHash}`);
+        clearProjections(); // Reset projections after confirmed add
+        onClose();
+      } else {
+        alert("⚠️ Liquidity add failed");
+      }
     } catch (err) {
       console.error(err);
-      alert("Transaction failed!");
+      alert("❌ Transaction failed - check console for details.");
     } finally {
       setLoading(false);
     }
