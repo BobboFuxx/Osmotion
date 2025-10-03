@@ -37,10 +37,16 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const [slippage, setSlippage] = useState(0.5);
   const [loading, setLoading] = useState(false);
 
+  // Auto-set LP amount to max when switching to "remove"
+  useEffect(() => {
+    if (mode === "remove" && pool) {
+      setLpAmount(pool.totalShares); // default to all LP tokens
+    }
+  }, [mode, pool]);
+
   // Update reward projections whenever inputs, pool, or mode change
   useEffect(() => {
     if (!pool) return;
-
     clearProjections();
 
     if (mode === "add") {
@@ -56,12 +62,10 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
     }
   }, [amountA, amountB, lpAmount, pool, mode, setProjection, clearProjections]);
 
-  // Clear projections when modal unmounts
   useEffect(() => () => clearProjections(), [clearProjections]);
 
   const projectionDays = [15, 180, 365];
 
-  // Calculate projected rewards based on LP share fraction
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
 
