@@ -20,7 +20,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface PoolModalProps {
   poolId: number;
-  initialMode?: "add" | "remove"; // optional, defaults to "add"
+  initialMode?: "add" | "remove";
   onClose: () => void;
 }
 
@@ -37,16 +37,15 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const [slippage, setSlippage] = useState(0.5);
   const [loading, setLoading] = useState(false);
 
-  // Update reward projections
+  // Update reward projections whenever inputs, pool, or mode change
   useEffect(() => {
     if (!pool) return;
+
     clearProjections();
 
     if (mode === "add") {
-      const totalLiquidityValue = pool.liquidityA + pool.liquidityB;
-      const deltaValue = amountA + amountB;
-      const estimatedLP = totalLiquidityValue > 0 ? (deltaValue / totalLiquidityValue) * pool.totalShares : 0;
-
+      const totalLiquidity = pool.liquidityA + pool.liquidityB;
+      const estimatedLP = totalLiquidity > 0 ? ((amountA + amountB) / totalLiquidity) * pool.totalShares : 0;
       setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: amountA });
       setProjection({ poolId: pool.id, token: pool.tokenB, deltaLiquidity: amountB });
       setLpAmount(estimatedLP);
@@ -57,31 +56,27 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
     }
   }, [amountA, amountB, lpAmount, pool, mode, setProjection, clearProjections]);
 
+  // Clear projections when modal unmounts
   useEffect(() => () => clearProjections(), [clearProjections]);
 
   const projectionDays = [15, 180, 365];
 
-  // Accurate projected rewards based on LP share fraction
+  // Calculate projected rewards based on LP share fraction
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
 
     if (mode === "add") {
       const totalSharesAfter = pool.totalShares + lpAmount;
       const shareFraction = totalSharesAfter > 0 ? lpAmount / totalSharesAfter : 0;
-
       return {
-        [pool.tokenA]:
-          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-        [pool.tokenB]:
-          pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenA]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenB]: pool.swapFeesNextEpoch * shareFraction * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
       };
     } else {
       const fraction = lpAmount / pool.totalShares;
       return {
-        [pool.tokenA]:
-          pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
-        [pool.tokenB]:
-          pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenA]: pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityA / (pool.liquidityA + pool.liquidityB)),
+        [pool.tokenB]: pool.swapFeesNextEpoch * (1 - fraction) * (pool.liquidityB / (pool.liquidityA + pool.liquidityB)),
       };
     }
   }, [lpAmount, pool, mode]);
@@ -153,16 +148,10 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
 
         {/* Mode Selector */}
         <div className="flex mb-4">
-          <button
-            className={`flex-1 py-2 rounded-l font-bold ${mode === "add" ? "bg-green-600" : "bg-gray-600"}`}
-            onClick={() => setMode("add")}
-          >
+          <button className={`flex-1 py-2 rounded-l font-bold ${mode === "add" ? "bg-green-600" : "bg-gray-600"}`} onClick={() => setMode("add")}>
             Add Liquidity
           </button>
-          <button
-            className={`flex-1 py-2 rounded-r font-bold ${mode === "remove" ? "bg-red-600" : "bg-gray-600"}`}
-            onClick={() => setMode("remove")}
-          >
+          <button className={`flex-1 py-2 rounded-r font-bold ${mode === "remove" ? "bg-red-600" : "bg-gray-600"}`} onClick={() => setMode("remove")}>
             Remove Liquidity
           </button>
         </div>
@@ -170,36 +159,12 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
         {/* Inputs */}
         {mode === "add" ? (
           <>
-            <input
-              type="number"
-              placeholder={pool.tokenA}
-              className="w-full mb-2 text-black rounded px-2 py-1"
-              value={amountA}
-              onChange={(e) => setAmountA(Number(e.target.value))}
-            />
-            <input
-              type="number"
-              placeholder={pool.tokenB}
-              className="w-full mb-2 text-black rounded px-2 py-1"
-              value={amountB}
-              onChange={(e) => setAmountB(Number(e.target.value))}
-            />
-            <input
-              type="number"
-              placeholder="Slippage %"
-              className="w-full mb-4 text-black rounded px-2 py-1"
-              value={slippage}
-              onChange={(e) => setSlippage(Number(e.target.value))}
-            />
+            <input type="number" placeholder={pool.tokenA} className="w-full mb-2 text-black rounded px-2 py-1" value={amountA} onChange={(e) => setAmountA(Number(e.target.value))} />
+            <input type="number" placeholder={pool.tokenB} className="w-full mb-2 text-black rounded px-2 py-1" value={amountB} onChange={(e) => setAmountB(Number(e.target.value))} />
+            <input type="number" placeholder="Slippage %" className="w-full mb-4 text-black rounded px-2 py-1" value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
           </>
         ) : (
-          <input
-            type="number"
-            placeholder="LP Tokens to Remove"
-            className="w-full mb-4 text-black rounded px-2 py-1"
-            value={lpAmount}
-            onChange={(e) => setLpAmount(Number(e.target.value))}
-          />
+          <input type="number" placeholder="LP Tokens to Remove" className="w-full mb-4 text-black rounded px-2 py-1" value={lpAmount} onChange={(e) => setLpAmount(Number(e.target.value))} />
         )}
 
         {/* Chart */}
@@ -220,14 +185,8 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
 
         {/* Actions */}
         <div className="flex justify-between">
-          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className={`px-4 py-2 rounded font-bold ${mode === "add" ? "bg-white text-purple-700" : "bg-white text-orange-600"}`}
-            onClick={mode === "add" ? handleAdd : handleRemove}
-            disabled={loading}
-          >
+          <button className="bg-gray-800 px-4 py-2 rounded" onClick={onClose}>Cancel</button>
+          <button className={`px-4 py-2 rounded font-bold ${mode === "add" ? "bg-white text-purple-700" : "bg-white text-orange-600"}`} onClick={mode === "add" ? handleAdd : handleRemove} disabled={loading}>
             {loading ? "Processing..." : mode === "add" ? "Add Liquidity" : "Remove Liquidity"}
           </button>
         </div>
