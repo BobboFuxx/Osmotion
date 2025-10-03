@@ -36,22 +36,20 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   const [lpAmount, setLpAmount] = useState(0);
   const [slippage, setSlippage] = useState(0.5);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ amountA?: string; amountB?: string; lpAmount?: string }>({});
 
-  // Auto-set LP amount to max when switching to "remove"
-  useEffect(() => {
-    if (mode === "remove" && pool) {
-      setLpAmount(pool.totalShares); // default to all LP tokens
-    }
-  }, [mode, pool]);
+  const projectionDays = [1, 15, 180, 365]; // Epoch, 15d, 180d, 1yr
 
-  // Update reward projections whenever inputs, pool, or mode change
+  // Update reward projections
   useEffect(() => {
     if (!pool) return;
+
     clearProjections();
 
     if (mode === "add") {
       const totalLiquidity = pool.liquidityA + pool.liquidityB;
       const estimatedLP = totalLiquidity > 0 ? ((amountA + amountB) / totalLiquidity) * pool.totalShares : 0;
+
       setProjection({ poolId: pool.id, token: pool.tokenA, deltaLiquidity: amountA });
       setProjection({ poolId: pool.id, token: pool.tokenB, deltaLiquidity: amountB });
       setLpAmount(estimatedLP);
@@ -62,10 +60,10 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
     }
   }, [amountA, amountB, lpAmount, pool, mode, setProjection, clearProjections]);
 
+  // Clear projections when modal unmounts
   useEffect(() => () => clearProjections(), [clearProjections]);
 
-  const projectionDays = [15, 180, 365];
-
+  // Projected rewards
   const projectedRewards = useMemo(() => {
     if (!pool) return { [pool?.tokenA || ""]: 0, [pool?.tokenB || ""]: 0 };
 
@@ -85,6 +83,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
     }
   }, [lpAmount, pool, mode]);
 
+  // Chart data
   const chartData = useMemo(() => {
     if (!pool) return null;
 
@@ -94,15 +93,29 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
     return {
       labels: ["Next Epoch", "15d", "180d", "1yr"],
       datasets: [
-        { label: `${pool.tokenA} Rewards`, data: [projectedRewards[pool.tokenA], ...projectedA], backgroundColor: "rgba(155,89,182,0.7)" },
-        { label: `${pool.tokenB} Rewards`, data: [projectedRewards[pool.tokenB], ...projectedB], backgroundColor: "rgba(255,111,60,0.7)" },
+        { label: `${pool.tokenA} Rewards`, data: projectedA, backgroundColor: "rgba(155,89,182,0.7)" },
+        { label: `${pool.tokenB} Rewards`, data: projectedB, backgroundColor: "rgba(255,111,60,0.7)" },
       ],
     };
   }, [projectedRewards, pool]);
 
+  // Input validation
+  const validateInputs = () => {
+    const errs: typeof errors = {};
+    if (mode === "add") {
+      if (amountA <= 0) errs.amountA = "Enter a valid amount for token A";
+      if (amountB <= 0) errs.amountB = "Enter a valid amount for token B";
+    } else {
+      if (lpAmount <= 0) errs.lpAmount = "Enter a valid LP token amount";
+      else if (pool && lpAmount > pool.totalShares) errs.lpAmount = "Cannot remove more than total LP tokens";
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleAdd = async () => {
+    if (!validateInputs()) return;
     if (!client || !account || !pool) return alert("⚠️ Wallet not connected or pool not found");
-    if (amountA <= 0 || amountB <= 0) return alert("⚠️ Enter valid amounts");
 
     setLoading(true);
     try {
@@ -123,8 +136,8 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   };
 
   const handleRemove = async () => {
+    if (!validateInputs()) return;
     if (!client || !account || !pool) return alert("⚠️ Wallet not connected or pool not found");
-    if (lpAmount <= 0) return alert("⚠️ Enter a valid LP token amount");
 
     setLoading(true);
     try {
@@ -146,7 +159,7 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
   if (!pool) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
       <div className="bg-purple-700 p-6 rounded w-96 text-white overflow-auto max-h-[90vh]">
         <h2 className="text-xl font-bold mb-4">Pool {pool.id}</h2>
 
@@ -163,12 +176,26 @@ export default function PoolModal({ poolId, initialMode = "add", onClose }: Pool
         {/* Inputs */}
         {mode === "add" ? (
           <>
-            <input type="number" placeholder={pool.tokenA} className="w-full mb-2 text-black rounded px-2 py-1" value={amountA} onChange={(e) => setAmountA(Number(e.target.value))} />
-            <input type="number" placeholder={pool.tokenB} className="w-full mb-2 text-black rounded px-2 py-1" value={amountB} onChange={(e) => setAmountB(Number(e.target.value))} />
-            <input type="number" placeholder="Slippage %" className="w-full mb-4 text-black rounded px-2 py-1" value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
+            <input type="number" placeholder={pool.tokenA} className={`w-full mb-2 px-2 py-1 rounded text-black ${errors.amountA ? "border-2 border-red-500" : ""}`} value={amountA} onChange={(e) => setAmountA(Number(e.target.value))} />
+            {errors.amountA && <p className="text-red-400 text-sm mb-2">{errors.amountA}</p>}
+
+            <input type="number" placeholder={pool.tokenB} className={`w-full mb-2 px-2 py-1 rounded text-black ${errors.amountB ? "border-2 border-red-500" : ""}`} value={amountB} onChange={(e) => setAmountB(Number(e.target.value))} />
+            {errors.amountB && <p className="text-red-400 text-sm mb-2">{errors.amountB}</p>}
+
+            <input type="number" placeholder="Slippage %" className="w-full mb-4 px-2 py-1 rounded text-black" value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
+
+            {/* Real-time min LP display */}
+            <p className="mb-4 text-sm">
+              Minimum LP tokens you will receive:{" "}
+              <span className="font-bold">{Math.floor(calcAmountWithSlippage(lpAmount, -slippage / 100))}</span>
+            </p>
           </>
         ) : (
-          <input type="number" placeholder="LP Tokens to Remove" className="w-full mb-4 text-black rounded px-2 py-1" value={lpAmount} onChange={(e) => setLpAmount(Number(e.target.value))} />
+          <div className="flex gap-2 mb-4">
+            <input type="number" placeholder="LP Tokens to Remove" className={`flex-1 px-2 py-1 rounded text-black ${errors.lpAmount ? "border-2 border-red-500" : ""}`} value={lpAmount} onChange={(e) => setLpAmount(Number(e.target.value))} />
+            <button className="bg-red-500 px-2 rounded text-white" onClick={() => setLpAmount(pool.totalShares)}>Use Max</button>
+            {errors.lpAmount && <p className="text-red-400 text-sm">{errors.lpAmount}</p>}
+          </div>
         )}
 
         {/* Chart */}
