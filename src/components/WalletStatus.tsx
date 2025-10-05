@@ -1,3 +1,4 @@
+// src/components/WalletStatus.tsx
 import React, { useState } from "react";
 import { useWallet } from "../hooks/useWallet";
 import { useEndpoint } from "../hooks/useEndpoint";
@@ -14,7 +15,7 @@ const walletLogos: Record<string, string> = {
 
 export const WalletStatus: React.FC = () => {
   const { account, walletType, connect, disconnect } = useWallet();
-  const { currentEndpoint, endpoints, online, switchEndpoint } = useEndpoint();
+  const { currentEndpoint, endpoints, online, switchEndpoint, endpointType } = useEndpoint();
   const [isConnecting, setIsConnecting] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
@@ -48,29 +49,40 @@ export const WalletStatus: React.FC = () => {
     }
   };
 
+  const toggleModal = () => setShowModal(!showModal);
+
+  const copyAddress = () => {
+    if (account) {
+      navigator.clipboard.writeText(account);
+      alert("Address copied to clipboard!");
+    }
+  };
+
   return (
     <div className="relative flex items-center space-x-2 text-white">
       {/* Wallet icon */}
       {walletType && walletLogos[walletType] && (
-        <img src={walletLogos[walletType]} alt={walletType} className="w-5 h-5" />
+        <img src={walletLogos[walletType]} alt={walletType} className="w-5 h-5 cursor-pointer" onClick={toggleModal} />
       )}
 
       {/* Wallet address */}
       {account && (
-        <span className="font-mono text-sm bg-gray-900 px-3 py-1 rounded border border-purple-500">
+        <span
+          className="font-mono text-sm bg-gray-900 px-3 py-1 rounded border border-purple-500 cursor-pointer"
+          onClick={toggleModal}
+        >
           {shortAddress(account)}
         </span>
       )}
 
       {/* Endpoint status */}
       <div
-        className={`w-3 h-3 rounded-full ${
-          online ? "bg-green-500" : "bg-red-500"
-        } border-2 border-orange-500`}
-        title={`Endpoint ${currentEndpoint} is ${online ? "online" : "offline"}`}
+        className={`w-3 h-3 rounded-full ${online ? "bg-green-500" : "bg-red-500"} border-2 border-orange-500 cursor-pointer`}
+        title={`Endpoint ${currentEndpoint} (${endpointType}) is ${online ? "online" : "offline"}`}
+        onClick={toggleModal}
       ></div>
 
-      {/* Wallet / Endpoint actions */}
+      {/* Connect / Disconnect buttons */}
       {account ? (
         <button
           className="px-3 py-1 bg-purple-700 text-white rounded hover:bg-purple-600 transition"
@@ -92,20 +104,31 @@ export const WalletStatus: React.FC = () => {
       {showModal && (
         <div className="absolute top-full right-0 mt-2 w-80 p-4 bg-gray-900 rounded shadow-lg z-50 border border-purple-500">
           <h4 className="font-bold mb-2 text-orange-400">Wallet Info</h4>
-          <p>Type: {walletLabel()}</p>
-          <p>Address: {account}</p>
+          <p>
+            Type: {walletLabel()}
+          </p>
+          <p className="flex items-center justify-between">
+            Address: {account}
+            <button
+              className="ml-2 px-2 py-0.5 bg-gray-800 rounded hover:bg-gray-700"
+              onClick={copyAddress}
+            >
+              Copy
+            </button>
+          </p>
 
           <h4 className="font-bold mt-4 mb-2 text-orange-400">Endpoints</h4>
           <ul>
             {endpoints.map((ep) => (
               <li
                 key={ep}
-                className={`cursor-pointer p-1 rounded ${
+                className={`cursor-pointer p-1 rounded flex justify-between items-center ${
                   ep === currentEndpoint ? "bg-gray-800 border border-purple-500" : "hover:bg-gray-800"
                 }`}
                 onClick={() => switchEndpoint(ep)}
               >
-                {ep} {ep === currentEndpoint && online ? "✔️" : ""}
+                <span>{ep}</span>
+                {ep === currentEndpoint && online && <span className="text-green-400 font-bold">✔️</span>}
               </li>
             ))}
           </ul>
