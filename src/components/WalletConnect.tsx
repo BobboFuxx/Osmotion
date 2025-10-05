@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useWallet } from "../hooks/useWallet";
 
 const WalletConnect: React.FC = () => {
-  const { account, connect, disconnect } = useWallet();
+  const { account, walletType, connect, disconnect } = useWallet();
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnect = async () => {
@@ -12,7 +12,7 @@ const WalletConnect: React.FC = () => {
       await connect();
     } catch (err) {
       console.error("⚠️ Wallet connection failed:", err);
-      alert("Failed to connect wallet. Please try again or check Keplr.");
+      alert("Failed to connect wallet. Please check Keplr, Leap, or MetaMask.");
     } finally {
       setIsConnecting(false);
     }
@@ -21,6 +21,21 @@ const WalletConnect: React.FC = () => {
   const shortAddress = (addr: string) =>
     addr ? `${addr.slice(0, 8)}...${addr.slice(-4)}` : "";
 
+  const walletLabel = () => {
+    switch (walletType) {
+      case "keplr":
+        return "Keplr";
+      case "leap":
+        return "Leap";
+      case "metamask":
+        return "MetaMask (via Leap)";
+      case "mnemonic":
+        return "Mnemonic";
+      default:
+        return "";
+    }
+  };
+
   return (
     <div className="flex items-center space-x-3 text-white">
       {account ? (
@@ -28,6 +43,9 @@ const WalletConnect: React.FC = () => {
           <span className="font-mono text-sm bg-gray-700 px-3 py-1 rounded">
             {shortAddress(account)}
           </span>
+          {walletType && (
+            <span className="text-xs text-gray-300 italic">{walletLabel()}</span>
+          )}
           <button
             className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition"
             onClick={disconnect}
